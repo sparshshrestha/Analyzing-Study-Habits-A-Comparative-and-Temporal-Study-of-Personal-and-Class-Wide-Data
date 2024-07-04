@@ -1,0 +1,451 @@
+---
+title: "Analyzing Study Habits A Comparative and Temporal Study of Personal and Class-Wide Data"
+author:
+- Sparsh Shrestha
+date: '`r Sys.Date()`'
+output: html_document
+extra_dependencies: xcolor
+---
+
+
+## **<span style="color: #8F2050;">Introduction</span>**
+### **<span style="color: #8F2050;">Data Sets</span>**
+#### **<span style="color: #8F2050;">Personalized Data Set</span>**
+I have collected personalized data about myself on how I spend my days during my 1st and 2nd semesters. I recorded data from January 14th, 2022, to April 13th, 2022, for my 1st semester and May 9th, 2022 to August 12th, 2022, for my 2nd semester on these variables:
+
+Variables | Type
+----------|-----
+**<span style="color: #8F2050; font-weight: bold;">Date</span>** | Identifier
+Hours in Class  | Quantitative
+**<span style="color: #8F2050; font-weight: bold;">Hours Studying</span>**  | Quantitative
+Hours Sleeping  | Quantitative
+Number of Times Leaving the House | Quantitative
+Watching the News | Categorical
+Online Course Taken  | Categorical
+Day Satisfaction  | Categorical
+Work Hours  | Quantitative
+**<span style="color: #8F2050; font-weight: bold;">Semester (1st or 2nd)</span>** | Categorical
+
+Although 10 different variables are recorded in the data set, I will only use 3 variables from the data set. The first variable is Date which is used as an identifier for each row of data. The second variable that I will use for this analysis is a quantitative variable, Hours Studying. This variable is the sum of the hours I spent in classes, doing an assignment, and doing an online course. I am currently a student so most of my time in a day is spent studying. The last variable I will be using for this analysis is the categorical, Semester which groups the data between my first semester (Winter2022) and second semester (Spring2022).
+
+#### **<span style="color: #8F2050;">Combined Class Data Set</span>**
+The combined class data set is the collection of the data collected by past students in 3 different programs: BAPG, HAGC, and CAGC. This data set contains 4 variables shown in the table below.
+
+Variables | Type
+----------|-----
+Date | Identifier
+Hours Studying  | Quantitative
+Term (F19, W20, F21 or W22) | Categorical
+Program (BAPG, CAGC, HAGC) | Categorical
+
+The first variable in the combined class data set is the same as in the personalized data set, the date which is an identifier. The second variable is a quantitative variable, hours studying. It is the average number of hours all students spend studying on a certain date. The third variable is a categorical variable, semester which groups the data for a different semester. And the last variable is also categorical, the program that groups the 3 different programs for which the data is collected.
+
+### **<span style="color: #8F2050;">Summary Statistics</span>**
+
+The following table shows the mean and standard deviation for hours spent studying by me, all the previous students in all 3 programs and all the previous students in 3 different programs.
+
+```{r include=FALSE}
+library(dplyr)
+sparsh <- read.csv(file = "Shrestha, Sparsh Personalized Data.csv",
+                   header = TRUE)
+
+combined <- read.csv(file = "Combined.csv",
+                     header = TRUE,
+                     fileEncoding = "UTF-8-BOM")
+
+bapg <- combined %>%
+  filter(Program == "BAPG")
+
+cagc <- combined %>%
+  filter(Program == "CAGC")
+
+hagc <- combined %>%
+  filter(Program == "HAGC")
+```
+
+Data Set | Mean | Standard Deviation
+---------|------|-------------------
+Sparsh | `r round(mean(sparsh$Study, na.rm=TRUE), 2)` | `r round(sd(sparsh$Study, na.rm=TRUE), 2)`
+All Students | `r round(mean(combined$Study, na.rm=TRUE), 2)` | `r round(sd(combined$Study, na.rm=TRUE), 2)`
+BAPG | `r round(mean(bapg$Study, na.rm=TRUE), 2)` | `r round(sd(bapg$Study, na.rm=TRUE), 2)`
+CAGC | `r round(mean(cagc$Study, na.rm=TRUE), 2)` | `r round(sd(cagc$Study, na.rm=TRUE), 2)`
+HAGC | `r round(mean(hagc$Study, na.rm=TRUE), 2)` | `r round(sd(hagc$Study, na.rm=TRUE), 2)`
+
+The following tables show the other remaining summary statistics for hours spent studying by me, all the previous students in all 3 programs and all the previous students in 3 different programs.
+
+```{r echo=FALSE}
+print("Sparsh")
+summary(sparsh$Study)
+print("Combined")
+summary(combined$Study)
+print("BAPG")
+summary(bapg$Study)
+print("CAGC")
+summary(cagc$Study)
+print("HAGC")
+summary(hagc$Study)
+```
+
+### **<span style="color: #8F2050;">Purpose and Methods</span>**
+The purpose of this analysis is to answer 3 different questions. The first is to figure out if the average study time is different for students in different analytics streams. The second question that needs to be answered is if the distribution of days studied more than 3.13 hours same for students in different analytics programs, or in other words, are the distribution of the studied hours independent of the program stream or not? The third issue that needs to be addressed is identifying how my study time changes over time from the start of the 1st semester to the end of the 2nd semester. To answer these questions I mentioned above I will use 3 different methods: ANOVA Test, Chi-Square Test, and Time-Series Analysis. 
+
+ANOVA also known as Analysis of Variance will be used to figure out the difference in average study time in different streams as ANOVA is used to compare means of more than 2 groups. Tukey's HSD test will also be used for the first question to determine which average is different in different analytics streams.
+
+The Chi-Square test for Independence is used to figure out if two variables are independent of each other or not. And the Chi-Square test will be used to answer the second question in this analysis if the distribution of studied hours is independent of the program stream or not.
+
+Finally, a time-series analysis will be done to identify how my study time changes over time. All the components of the time series will also be analyzed. 3 Different moving average models for studied hours will be plotted and the best will be identified. Moreover, the best exponential smoothing model for hours studied will also be identified and plotted.
+
+## **<span style="color: #8F2050;">Data Analysis</span>**
+
+### **<span style="color: #8F2050;">ANOVA – comparing average study time for different program streams</span>**
+
+```{r echo=FALSE}
+set.seed(241221)
+bapg.50 <- combined %>%
+  filter(Program == "BAPG") %>%
+  sample_n(50)
+
+cagc.50 <- combined %>%
+  filter(Program == "CAGC") %>%
+  sample_n(50)
+
+hagc.50 <- combined %>%
+  filter(Program == "HAGC") %>%
+  sample_n(50)
+
+combined.150 <- rbind(bapg.50, cagc.50, hagc.50)
+```
+
+#### **<span style="color: #8F2050;">Hypotheses</span>**
+
+Null Hypothesis $\rightarrow$ $H_0: \mu_B = \mu_C = \mu_H$
+
+Alternative Hypothesis $\rightarrow$ $H_A:$ At least one mean is different
+
+#### **<span style="color: #8F2050;">ANOVA Test</span>**
+
+The following table shows the summary statistics for the ANOVA test
+
+```{r echo = FALSE}
+study.anova <- aov(Study~Program, data=combined.150)
+summary(study.anova)
+```
+
+
+$P-value =$ `r summary(study.anova)[[1]][["Pr(>F)"]][1]` $< \alpha = 0.05$
+
+The P-value of the ANOVA test is `r summary(study.anova)[[1]][["Pr(>F)"]][1]` which is less than the $\alpha$ (0.05), so we reject the null hypothesis. This means that there is enough evidence that there is at least one program where the average study hour is significantly different than other programs.
+
+#### **<span style="color: #8F2050;">Assumptions and Conditions</span>**
+The following assumptions and conditions must be met for the ANOVA test to be valid:
+
+**<span style="font-weight: bold;">1. Independence Assumption:</span>** 50 random samples are taken from the combined data set for each program which are independent of each other. So, this condition is met.
+
+**<span style="font-weight: bold;">2. Similar Variance Assumption:</span>** The box plot below shows that there is not any vast difference between the variance of the different programs. So, this assumption is also met.
+```{r echo=FALSE}
+boxplot(Study~Program,
+        combined.150,
+        col = c("red", "green", "blue"),
+        main = "Box plot of the study hours for different programs",
+        ylab = "Study Hours")
+```
+
+**<span style="font-weight: bold;">3. Normal Population Assumption:</span>** The histogram of residuals looks nearly normal which means that the normal population condition is also met.
+```{r echo=FALSE}
+hist(study.anova$residuals,
+     main = "Histogram of the Residuals",
+     xlab = "Residuals",
+     col = "orange")
+```
+
+Since all the conditions are met the results of the ANOVA test are valid.
+
+#### **<span style="color: #8F2050;">Tukey's HSD</span>**
+
+The following table shows the output for Tukey's HSD test on the 50 samples for all the 3 programs.
+
+```{r echo = FALSE}
+study.hsd <- TukeyHSD(study.anova,
+         conf.level = 0.95)
+study.hsd$Program
+```
+From the above table, it can be seen that both (CAGC-BAPG) and (HAGC-BAPG) is less than the $\alpha$ (0.05) which means that we reject the null hypothesis in this case. In the case of (HAGC-CAGC), we fail to reject the null hypothesis as it is greater than the $\alpha$ (0.05). This analysis leads to the conclusion that the average study hours for BAPG are different from the other programs. 
+
+#### **<span style="color: #8F2050;">Bar Plot of group means</span>**
+
+The following bar plot illustrates the average study hours for each program. It is clear from the box plot that the average study hours for BAPG are less than the average study hours for the CAGC and HAGC programs.
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+library(ggplot2)
+ggplot(combined.150,
+       aes(x = Program,
+           y = Study,
+           fill = Program))+
+  stat_summary(fun = "mean",
+               geom = "bar")+
+  stat_summary(fun.data = mean_cl_normal,
+               geom = "errorbar",
+               width = 0.2)+
+  labs(x = "Program",
+       y = "Study Hours",
+       title = "Study Hours for different Programs")+
+  scale_fill_brewer(palette = "Set3")
+```
+
+### **<span style="color: #8F2050;">Chi-Square Tests – comparing the distribution of study time by program stream</span>**
+
+```{r echo = FALSE}
+combined.150$Above.Below.Mean <- ifelse(combined.150$Study > 3.13, "Above", "Below")
+```
+
+#### **<span style="color: #8F2050;">Hypotheses</span>**
+
+Null Hypothesis $\rightarrow$ $H_0:$ The hours of study above or below the mean (3.13) are independent of the program.
+
+Alternative Hypothesis $\rightarrow$ $H_A:$ The hours of study above or below the mean (3.13) are not independent of the program.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+observed.hours <- table(combined.150$Above.Below.Mean, combined.150$Program)
+observed.hours
+```
+
+#### **<span style="color: #8F2050;">Chi-Square test for Independence</span>**
+
+The following figure shows the output for the Chi-Square test.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+observed.hours.chi <- chisq.test(observed.hours)
+observed.hours.chi
+```
+$P-value =$ `r observed.hours.chi[3][["p.value"]][1]` $< \alpha = 0.05$
+
+The P-value of the Chi-square test is less than the α (0.05) which means that we reject the null hypothesis. There is significant evidence that the hours of study above or below the mean are dependent on the program.
+
+#### **<span style="color: #8F2050;">Assumptions and Conditions</span>**
+
+**<span style="font-weight: bold;">1. Counted Data Condition:</span>** The data is counted for the categories (Above or Below) of a categorical variable. This condition is met.
+
+**<span style="font-weight: bold;">2. Independent Assumption:</span>** The counts in the cells are independent of each other as the data for each variable was collected on a different day for different programs.
+
+**<span style="font-weight: bold;">3. Randomization Condition:</span>** The random sample of 50 values is collected from all the 3 programs. So, this condition is also met.
+
+**<span style="font-weight: bold;">4. Sample Size Condition:</span>** The expected individual count for all the cells are above 5. The following table shows the count for each cell. This condition is also met.
+
+All the conditions for the Chi-Square test are met. So, the test result is valid.
+
+#### **<span style="color: #8F2050;">Mosaic Plot</span>**
+
+The mosaic plot below represents the study hours above and below the mean (3.13) across all 3 programs. No box is coloured  in the plot which means that all the residuals are between -2 and +2. The below category is more narrow compared to the above category which means that most of the students in all the programs study for more than 3.13 hours. HAGC has the highest bar in the above Column which means that HAGC has the highest number of students who study more than 3.13 hours and BAPG students have the lowest amount in the above category. On the other side, BAPG has the highest number of study hours below 3.13 hours and HAGC has the lowest study hours below 3.13 hours.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+mosaicplot(observed.hours,
+           shade=TRUE, 
+           xlab="Category",
+           ylab="Program",
+           main="Mosaic Plot for study hours across 3 programs",
+           las = 1)
+```
+
+This analysis showed that the students studying above or below 3.13 hours have a relationship with which program they study in but I think that the main factor for the study hours are students themselves rather than the program they choose as the amount of workload and course content of all the 3 programs is same in the most part. As I am a BAPG student myself I know how heavy the workload for the BAPG program is and I think the reason for the BAPG having more study hours below the mean is the students in the program are not spending enough time on their studies whereas other program student giving more time in their studies.
+
+### **<span style="color: #8F2050;">Time Series Analysis – how does my study time change over time?</span>**
+
+```{r include=FALSE, warning = FALSE, message=FALSE}
+#install.packages("zoo")
+#install.packages("forecast")
+library(zoo)
+library(forecast)
+
+sparsh$Date <- as.Date(sparsh$Date,format="%Y-%m-%d")
+sparsh.zoo <- zoo(sparsh[,3],sparsh[,1])
+
+sparsh.all <- merge(sparsh.zoo,zoo(,seq(start(sparsh.zoo),end(sparsh.zoo),by="day")), all=TRUE) #include all missing dates
+
+#Make a time series with the longest stretch of dates
+sparsh.ts<-ts(na.contiguous(sparsh.all), frequency = 7) #frequency = 7
+```
+
+#### **<span style="color: #8F2050;">Decomposition of the time series</span>**
+
+The following plot slows the decomposition of the time series for my study hours. There are 4 components of the time series:
+
+**<span style="font-weight: bold;">1. Trend Component:</span>** The trend of the time series seems to be stationary in the mean overall. There is a slight dip in the middle of the timeline in the trend plot but overall the trend seems stationary. The trend is stationary because I keep trying to be on track for my studies and try to give as many hours to studying as I can.
+
+**<span style="font-weight: bold;">2. Seasonal component:</span>** There is a seasonal component to the time series. The same pattern keeps repeating over time, in this case, it's repeating weekly. The peak in the seasonal components should be during weekends when I study the most as I don't have work and classes during this time. And the decline in the seasonal components should be during weekdays (Tuesday and Wednesday) when I had most of my classes and work shifts.
+
+**<span style="font-weight: bold;">3. Cyclical component:</span>** There is no cyclical component in this time series because the duration of the data collected is less than a year. And we need data for years to correctly identify cyclical components in a time series.
+
+**<span style="font-weight: bold;">4. Irregular component:</span>** There are irregular components in the time series. It is hard to figure out what each spike in the irregular components represents but its most likely some of the real-life disturbances in my study hours like I did not study for some days when I got sick once and once I had to shift my place of residence and could not study for few days.
+
+```{r echo = FALSE}
+plot(decompose(sparsh.ts))
+```
+
+#### **<span style="color: #8F2050;">Moving Average Models</span>**
+
+The plot below represents the time series graph for the hour studied by me from January 14, 2022, till August 12, 2022.
+
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+plot.ts(sparsh.ts,
+        xlab="Days since January 14, 2022",
+        ylab="Hours Studied",
+        main="Time Series Plot for studied hours")
+```
+
+The following plot shows the graph for the original data and moving averages of lengths 5, 10, and 15. The black line represents the original time series data. The red line represents the moving average of length 5 and it seems the be following the trends in data more closely than other moving averages. Whereas the moving average with the length of 15 is represented by the blue line which seems smoother and follows the trend slower than other moving averages. The green line representing MA10 seems to be in between the other two moving averages in following the trend and smoothness of the line.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+library(TTR)
+
+sparsh.ma5 <- SMA(sparsh.ts, n = 5)
+sparsh.ma10 <- SMA(sparsh.ts, n = 10)
+sparsh.ma15 <- SMA(sparsh.ts, n = 15)
+
+plot.ts(cbind(sparsh.ts, sparsh.ma5, sparsh.ma10, sparsh.ma15),
+        plot.type = "single",
+        col = c("black", "red", "green", "blue"),
+        xlab = "Days since January 14, 2022",
+        ylab = "Hours Studied",
+        main = "Sparsh's Personalized Study Data")
+legend("top",
+       legend = c("Data", "MA5", "MA10", "MA15"),
+       col = c("black", "red", "green", "blue"),
+       lty=1,
+       cex=0.8)
+```
+
+##### **<span style="color: #8F2050;">Forecast</span>**
+
+The following table shows the forecast for the next day for moving averages. And all the models show the same value for the forecast of study hours on the next day which is 5 hours. Since my average study hours overall is 5.065 hours the predictions might not be far off in this case.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+print(paste("MA5 =", sparsh.ma5[length(sparsh.ma5)]))
+print(paste("MA10 =", sparsh.ma10[length(sparsh.ma10)]))
+print(paste("MA15 =", sparsh.ma15[length(sparsh.ma15)]))
+```
+
+
+##### **<span style="color: #8F2050;">Forecast Error</span>**
+
+The following table shows the Mean Squared Error (MSE), Mean Absolute Deviation/Error (MAD/MAE), and Mean Absolute Percentage Error (MAPE) for each moving average. The MA15 has the lowest error compared to other moving averages in the case of MSE and MAD whereas MAPE is infinity for all the moving averages. In my opinion, MA 15 has the lowest error because it is following the sudden spikes slower and is almost stationary and the trend component of the data showed that the trend is stationary for the studied hours. That's the reason the MA15 is the moving average with the least error overall. So, the best forecasting model should be MA15 which has the lowest error among all other moving averages.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+#Function to compute error metrics
+ERRORS<-function(data, L){
+  ma.data<-SMA(data, n=L)
+  error<-NULL
+  for (i in 1:length(data)-L){
+    error[i]<-data[i+L]-ma.data[i+L-1]
+  }
+  error.p<-NULL
+  for(i in 1:length(data)-L){
+    error.p[i]<-abs(data[i+L]-ma.data[i+L-1])/abs(data[i+L])
+  }
+  MSE<-mean(error^2)
+  MAD<-mean(abs(error))
+  MAPE<-mean(error.p)*100
+  error.df<-data.frame(errors=c(MSE, MAD, MAPE), row.names=c("MSE", "MAD", "MAPE"))
+  return(error.df)
+}
+
+options(scipen=999)
+ERROR.MA5 <- ERRORS(sparsh.ts, 5)
+ERROR.MA10 <- ERRORS(sparsh.ts, 10)
+ERROR.MA15 <- ERRORS(sparsh.ts, 15)
+
+#All together in one table
+study.errors <- cbind(ERROR.MA5, ERROR.MA10, ERROR.MA15)
+colnames(study.errors) <- c("MA5", "MA10", "MA15")
+study.errors
+```
+
+#### **<span style="color: #8F2050;">Exponential Smoothing</span>**
+
+##### **<span style="color: #8F2050;">Choosing Best Exponential Smoothing Model</span>**
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+library(forecast)
+study.ses <- HoltWinters(sparsh.ts, beta = FALSE, gamma = FALSE)
+```
+
+The time series for study hours for my personalized data shows no trend. There are a lot of spikes and declines present but there is no clear trend in the overall time series. And there are also no lucid repeating patterns that represent seasonality. Since there is no trend and seasonality in the time series Simple Exponential Smoothing Model is the best exponential smoothing model for this time series data. The following figure shows the plot for the Optimal Smoothing Model for the time series data. The $\alpha$ for the optimal model is `r study.ses$alpha`.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+plot.ts(cbind(sparsh.ts, study.ses$fitted[,1]),
+        col = c("black", "red"),
+        plot.type = "single", 
+        ylab = "Hours Studied",
+        main = "Exponential Smoothing for Study Hours")
+legend("top",
+       legend = c("data", "Optimal HW"),
+       col = c("black", "red"),
+       lty = 1)
+```
+
+##### **<span style="color: #8F2050;">Checking the accuracy of the Exponential Smoothing Model</span>**
+
+The optimal model has the $\alpha$ value of `r study.ses$alpha`. But let's also plot the exponential model for $\alpha$=0.2 and $\alpha$=0.8 and check their accuracy to get the best forecast possible. The following figure plot shows the optimal smoothing model in the blue line which is stable and smooth and is good for forecasting. But when $\alpha$=0.08, represented by the red line it reacts with irregular fluctuation rapidly but is not best for forecasting.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+study.ses080 <- HoltWinters(sparsh.ts,
+                            alpha=0.80,
+                            beta=FALSE,
+                            gamma=FALSE)
+study.ses020 <- HoltWinters(sparsh.ts,
+                            alpha=0.20,
+                            beta=FALSE,
+                            gamma=FALSE)
+plot.ts(cbind(sparsh.ts,
+              study.ses080$fitted[, 1],
+              study.ses020$fitted[,1],
+              study.ses$fitted[,1]), 
+        plot.type = "single", 
+        col = c("black", "red", "green", "blue"),
+        ylab = "Hours",
+        main = "Comparing Models for the Personalized Data")
+legend("top",
+       legend = c("Data", "SES alpha = 0.8", "SES alpha = 0.2", "SES Optimal"),
+       col = c("black", "red", "green", "blue"),
+       lty=1,
+       cex=0.8)
+```
+
+The following table shows the error metrics for the simple smoothing model when $\alpha$=0.8 and $\alpha$=0.2, the Optimal smoothing model and the moving average model. According to the table, the Optimal Smoothing Model is the best exponential model but the Moving Average Model seems to be more accurate compared to the exponential model. The reason for this may be because of a change in my work schedule in the last 2 months of the collected data which directly affects the study hours. The exponential model accounts for all the past data whereas Moving Average accounts for the data within the moving window size. So, the change in my work hours completely changed my study hours on different days resulting in the moving average being more accurate.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+library(TTR)
+library(data.table)
+print("SES0.80")
+accuracy(forecast(study.ses080))
+print("SES0.20")
+accuracy(forecast(study.ses020))
+print("Optimal")
+accuracy(forecast(study.ses))
+print("Moving Average")
+accuracy(shift(sparsh.ma15, +1), sparsh.ts)
+```
+
+##### **<span style="color: #8F2050;">Forecast using the Exponential Smoothing Model</span>**
+
+The following table shows the prediction for study hours for the next 5 days. The 5 columns represent the mean, lower 80% confidence interval, higher 80% confidence interval, lower 95% confidence interval, and higher 95% confidence interval for study hours.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+study.forecast <- forecast(study.ses, h=5)
+study.forecast
+```
+
+The following plot illustrates the forecasted values for the next 5 days. The blue straight line in the middle is the median mean value, the darker shade represents the 80% confidence interval and the light shade represents the 95% confidence interval.
+
+```{r echo=FALSE, warning = FALSE, message=FALSE}
+plot(study.forecast, xlab="Time", ylab="Study Hours", main="Forecasted Values")
+```
+
+## **<span style="color: #8F2050;">Conclusion</span>**
+
+To determine, if there is a difference in average study times for students in different analytics streams, the ANOVA test and Tukey's HSD were performed. The ANOVA test indicated that there is at least one program where the average study hour is significantly different than other programs. Additionally, Tukey's HSD showed that average study hours for BAPG are different from the other programs. Moreover, the bar plot unveiled that the average study hours for BAPG is less than the average study hours for the CAGC and HAGC programs.
+
+To determine, if the distribution of days studied for more than 3.13 hours by students in the different programs independent of program stream Chi-Square Test for Independence was used. The Chi-Square test showed that there is significant evidence that the hours of study are dependent on the program. The analysis showed that the students studying more than 3.13 hours have a relationship with which program they studied. The mosaic plot showed that most of the students who combined in all the programs studied for more than 3.13 hours. But when we look at the specific programs most of the students in the BAPG program study less than 3.13 hours whereas most of the students in the CAGC and HAGC programs study more than 3.13 hours.
+
+Finally, I checked how my study time changes over time. The decomposition of the data shows that the trend of the time series was stationary. The study hours keep fluctuating over time with sudden spikes and declines. This may be because of the incident happening to me in my life like getting sick, having to move from residence and changes in working schedules. The moving average with a moving window of size 15 was the best model for the data. The forecast using the moving average predicted that I will study for 5 hours the next day. For the exponential smoothing model, the optimal model with α=0.0958865 was the best smoothing model. And the smoothing model gave the prediction for study hours for the next 5 days within 80% and 95% confidence intervals.
+
+I got a few insights about my studying habit from the analysis of my study hours. It showed me that I study for 5.06 hours on average every week which means I spend 35.42 hours per week studying. And there is a lot of fluctuations in my study habit where I study for almost 10 hours on someday and do not study at all on some days. And the smoothing model roughly predicted my study hours for the next 5 days between -0.76 hours to 10.45 hours. I am currently satisfied with the number of hours I am spending while studying but I will give more hours to studying moving forward.
